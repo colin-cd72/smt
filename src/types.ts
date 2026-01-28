@@ -9,7 +9,6 @@ export interface ShotTimingData {
   curve: number | null;
   carryDistance: number | null;
   totalDistance: number | null;
-  // Time deltas in milliseconds from first row
   timeToBallSpeed: number | null;
   timeToLaunchAngle: number | null;
   timeToApex: number | null;
@@ -27,7 +26,6 @@ export interface GolferStats {
   avgCarryDistance: number | null;
   avgTotalDistance: number | null;
   maxTotalDistance: number | null;
-  // Average time deltas in seconds
   avgTimeToBallSpeed: number | null;
   avgTimeToLaunchAngle: number | null;
   avgTimeToApex: number | null;
@@ -36,10 +34,30 @@ export interface GolferStats {
   avgTimeToTotal: number | null;
 }
 
+export interface Match {
+  id: number;
+  match_number: string;
+  description: string;
+  created_at: string;
+  shot_count: number;
+}
+
 export interface UploadResponse {
   success: boolean;
+  matchNumber: string;
   totalRows: number;
   completedShots: number;
+  golfers: string[];
+  stats: GolferStats[];
+}
+
+export interface MatchResponse {
+  match: {
+    matchNumber: string;
+    description: string;
+    createdAt: string;
+  };
+  totalShots: number;
   golfers: string[];
   stats: GolferStats[];
 }

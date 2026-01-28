@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Papa from 'papaparse';
+import Database from 'better-sqlite3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,6 +12,55 @@ const app = express();
 const PORT = process.env.PORT || 3999;
 
 app.use(express.json());
+
+// Database setup
+const dbPath = process.env.NODE_ENV === 'production'
+  ? path.join(__dirname, '../data/smt.db')
+  : path.join(__dirname, '../smt.db');
+
+// Ensure data directory exists
+import fs from 'fs';
+const dataDir = path.dirname(dbPath);
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const db = new Database(dbPath);
+
+// Initialize database tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    match_number TEXT UNIQUE NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS shots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    match_id INTEGER NOT NULL,
+    golfer TEXT NOT NULL,
+    hole_number INTEGER NOT NULL,
+    stroke_number INTEGER NOT NULL,
+    first_timestamp TEXT,
+    ball_speed REAL,
+    launch_angle REAL,
+    apex REAL,
+    curve REAL,
+    carry_distance REAL,
+    total_distance REAL,
+    time_to_ball_speed INTEGER,
+    time_to_launch_angle INTEGER,
+    time_to_apex INTEGER,
+    time_to_curve INTEGER,
+    time_to_carry INTEGER,
+    time_to_total INTEGER,
+    FOREIGN KEY (match_id) REFERENCES matches(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_shots_match ON shots(match_id);
+  CREATE INDEX IF NOT EXISTS idx_shots_golfer ON shots(golfer);
+`);
 
 // File upload configuration
 const storage = multer.memoryStorage();
@@ -40,7 +90,6 @@ interface ShotTimingData {
   curve: number | null;
   carryDistance: number | null;
   totalDistance: number | null;
-  // Time deltas in milliseconds from first row
   timeToBallSpeed: number | null;
   timeToLaunchAngle: number | null;
   timeToApex: number | null;
@@ -58,7 +107,6 @@ interface GolferStats {
   avgCarryDistance: number | null;
   avgTotalDistance: number | null;
   maxTotalDistance: number | null;
-  // Average time deltas in seconds
   avgTimeToBallSpeed: number | null;
   avgTimeToLaunchAngle: number | null;
   avgTimeToApex: number | null;
@@ -68,7 +116,6 @@ interface GolferStats {
 }
 
 function parseTimestamp(ts: string): number {
-  // Format: HH:MM:SS.mmm
   const parts = ts.split(':');
   if (parts.length !== 3) return 0;
   const hours = parseInt(parts[0]) || 0;
@@ -103,7 +150,6 @@ function parseCSV(csvContent: string): RawRow[] {
 }
 
 function processShotTiming(rows: RawRow[]): ShotTimingData[] {
-  // Group rows by unique shot (golfer + hole + stroke)
   const shotMap = new Map<string, RawRow[]>();
 
   rows.forEach(row => {
@@ -117,13 +163,11 @@ function processShotTiming(rows: RawRow[]): ShotTimingData[] {
   const shots: ShotTimingData[] = [];
 
   shotMap.forEach((shotRows) => {
-    // Sort by timestamp
     shotRows.sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
 
     const firstRow = shotRows[0];
     const firstTime = parseTimestamp(firstRow.timestamp);
 
-    // Track when each field first appears
     let timeToBallSpeed: number | null = null;
     let timeToLaunchAngle: number | null = null;
     let timeToApex: number | null = null;
@@ -131,7 +175,6 @@ function processShotTiming(rows: RawRow[]): ShotTimingData[] {
     let timeToCarry: number | null = null;
     let timeToTotal: number | null = null;
 
-    // Final values
     let finalBallSpeed: number | null = null;
     let finalLaunchAngle: number | null = null;
     let finalApex: number | null = null;
@@ -168,7 +211,6 @@ function processShotTiming(rows: RawRow[]): ShotTimingData[] {
         finalTotal = row.totalDistance;
       }
 
-      // Update final values (in case they change)
       if (row.ballSpeed !== null) finalBallSpeed = row.ballSpeed;
       if (row.launchAngle !== null) finalLaunchAngle = row.launchAngle;
       if (row.apex !== null) finalApex = row.apex;
@@ -177,7 +219,6 @@ function processShotTiming(rows: RawRow[]): ShotTimingData[] {
       if (row.totalDistance !== null) finalTotal = row.totalDistance;
     });
 
-    // Only include shots that have at least total distance (completed shots)
     if (finalTotal !== null) {
       shots.push({
         golfer: firstRow.golfer,
@@ -225,7 +266,6 @@ function calculateGolferStats(shots: ShotTimingData[]): GolferStats[] {
     return valid.length > 0 ? Math.max(...valid) : null;
   };
 
-  // Convert ms to seconds for averages
   const avgToSeconds = (val: number | null): number | null => {
     return val !== null ? val / 1000 : null;
   };
@@ -257,28 +297,170 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Upload and parse CSV
+// Get all matches
+app.get('/api/matches', (req, res) => {
+  try {
+    const matches = db.prepare(`
+      SELECT m.*, COUNT(s.id) as shot_count
+      FROM matches m
+      LEFT JOIN shots s ON s.match_id = m.id
+      GROUP BY m.id
+      ORDER BY m.created_at DESC
+    `).all();
+    res.json({ matches });
+  } catch (error) {
+    console.error('Error fetching matches:', error);
+    res.status(500).json({ error: 'Failed to fetch matches' });
+  }
+});
+
+// Get a specific match with stats
+app.get('/api/matches/:matchNumber', (req, res) => {
+  try {
+    const { matchNumber } = req.params;
+
+    const match = db.prepare('SELECT * FROM matches WHERE match_number = ?').get(matchNumber) as any;
+    if (!match) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
+    const shotsRows = db.prepare('SELECT * FROM shots WHERE match_id = ?').all(match.id) as any[];
+
+    const shots: ShotTimingData[] = shotsRows.map(row => ({
+      golfer: row.golfer,
+      holeNumber: row.hole_number,
+      strokeNumber: row.stroke_number,
+      firstTimestamp: row.first_timestamp,
+      ballSpeed: row.ball_speed,
+      launchAngle: row.launch_angle,
+      apex: row.apex,
+      curve: row.curve,
+      carryDistance: row.carry_distance,
+      totalDistance: row.total_distance,
+      timeToBallSpeed: row.time_to_ball_speed,
+      timeToLaunchAngle: row.time_to_launch_angle,
+      timeToApex: row.time_to_apex,
+      timeToCurve: row.time_to_curve,
+      timeToCarry: row.time_to_carry,
+      timeToTotal: row.time_to_total
+    }));
+
+    const golferStats = calculateGolferStats(shots);
+
+    res.json({
+      match: {
+        matchNumber: match.match_number,
+        description: match.description,
+        createdAt: match.created_at
+      },
+      totalShots: shots.length,
+      golfers: golferStats.map(g => g.golfer),
+      stats: golferStats
+    });
+  } catch (error) {
+    console.error('Error fetching match:', error);
+    res.status(500).json({ error: 'Failed to fetch match' });
+  }
+});
+
+// Upload and save to match
 app.post('/api/upload', upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    const matchNumber = req.body.matchNumber;
+    const description = req.body.description || '';
+
+    if (!matchNumber) {
+      return res.status(400).json({ error: 'Match number is required' });
+    }
+
     const csvContent = req.file.buffer.toString('utf-8');
     const rawRows = parseCSV(csvContent);
     const shots = processShotTiming(rawRows);
+
+    // Create or get match
+    let match = db.prepare('SELECT * FROM matches WHERE match_number = ?').get(matchNumber) as any;
+
+    if (!match) {
+      const result = db.prepare('INSERT INTO matches (match_number, description) VALUES (?, ?)').run(matchNumber, description);
+      match = { id: result.lastInsertRowid, match_number: matchNumber };
+    }
+
+    // Delete existing shots for this match (replace mode)
+    db.prepare('DELETE FROM shots WHERE match_id = ?').run(match.id);
+
+    // Insert new shots
+    const insertShot = db.prepare(`
+      INSERT INTO shots (
+        match_id, golfer, hole_number, stroke_number, first_timestamp,
+        ball_speed, launch_angle, apex, curve, carry_distance, total_distance,
+        time_to_ball_speed, time_to_launch_angle, time_to_apex,
+        time_to_curve, time_to_carry, time_to_total
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertMany = db.transaction((shots: ShotTimingData[]) => {
+      for (const shot of shots) {
+        insertShot.run(
+          match.id,
+          shot.golfer,
+          shot.holeNumber,
+          shot.strokeNumber,
+          shot.firstTimestamp,
+          shot.ballSpeed,
+          shot.launchAngle,
+          shot.apex,
+          shot.curve,
+          shot.carryDistance,
+          shot.totalDistance,
+          shot.timeToBallSpeed,
+          shot.timeToLaunchAngle,
+          shot.timeToApex,
+          shot.timeToCurve,
+          shot.timeToCarry,
+          shot.timeToTotal
+        );
+      }
+    });
+
+    insertMany(shots);
+
     const golferStats = calculateGolferStats(shots);
 
     res.json({
       success: true,
+      matchNumber,
       totalRows: rawRows.length,
       completedShots: shots.length,
       golfers: golferStats.map(g => g.golfer),
       stats: golferStats
     });
   } catch (error) {
-    console.error('Error parsing CSV:', error);
-    res.status(500).json({ error: 'Failed to parse CSV' });
+    console.error('Error uploading:', error);
+    res.status(500).json({ error: 'Failed to process upload' });
+  }
+});
+
+// Delete a match
+app.delete('/api/matches/:matchNumber', (req, res) => {
+  try {
+    const { matchNumber } = req.params;
+
+    const match = db.prepare('SELECT * FROM matches WHERE match_number = ?').get(matchNumber) as any;
+    if (!match) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
+    db.prepare('DELETE FROM shots WHERE match_id = ?').run(match.id);
+    db.prepare('DELETE FROM matches WHERE id = ?').run(match.id);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting match:', error);
+    res.status(500).json({ error: 'Failed to delete match' });
   }
 });
 
