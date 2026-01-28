@@ -23,13 +23,13 @@ Opens frontend at http://localhost:5173 with API proxy to backend at port 3001.
 ### 1. Create Node.js Site in CloudPanel
 
 - Site: `smt.4tmrw.net`
-- App Port: `3001`
+- App Port: `3999`
 - Node.js version: 20.x
 
 ### 2. Clone and Build
 
 ```bash
-cd /home/cloudpanel/htdocs/smt.4tmrw.net
+cd /home/smt/htdocs/smt.4tmrw.net
 git clone https://github.com/colin-cd72/smt.git .
 npm install
 npm run build
@@ -45,11 +45,11 @@ pm2 startup
 
 ### 4. Nginx Configuration
 
-In CloudPanel, set the Nginx vhost to proxy to port 3001:
+In CloudPanel, set the Nginx vhost to proxy to port 3999:
 
 ```nginx
 location / {
-    proxy_pass http://127.0.0.1:3001;
+    proxy_pass http://127.0.0.1:3999;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection 'upgrade';
