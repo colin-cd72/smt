@@ -3,7 +3,6 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Papa from 'papaparse';
-import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,21 +16,7 @@ app.use(express.json());
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Column definitions for the CSV
-const COLUMNS = [
-  'timestamp',
-  'golfer',
-  'holeNumber',
-  'strokeNumber',
-  'ballSpeed',
-  'launchAngle',
-  'apex',
-  'curve',
-  'carryDistance',
-  'totalDistance'
-];
-
-interface ShotData {
+interface RawRow {
   timestamp: string;
   golfer: string;
   holeNumber: number;
@@ -44,18 +29,57 @@ interface ShotData {
   totalDistance: number | null;
 }
 
+interface ShotTimingData {
+  golfer: string;
+  holeNumber: number;
+  strokeNumber: number;
+  firstTimestamp: string;
+  ballSpeed: number | null;
+  launchAngle: number | null;
+  apex: number | null;
+  curve: number | null;
+  carryDistance: number | null;
+  totalDistance: number | null;
+  // Time deltas in milliseconds from first row
+  timeToBallSpeed: number | null;
+  timeToLaunchAngle: number | null;
+  timeToApex: number | null;
+  timeToCurve: number | null;
+  timeToCarry: number | null;
+  timeToTotal: number | null;
+}
+
 interface GolferStats {
   golfer: string;
-  shots: ShotData[];
+  shots: ShotTimingData[];
   avgBallSpeed: number | null;
   avgLaunchAngle: number | null;
   avgApex: number | null;
   avgCarryDistance: number | null;
   avgTotalDistance: number | null;
   maxTotalDistance: number | null;
+  // Average time deltas in seconds
+  avgTimeToBallSpeed: number | null;
+  avgTimeToLaunchAngle: number | null;
+  avgTimeToApex: number | null;
+  avgTimeToCurve: number | null;
+  avgTimeToCarry: number | null;
+  avgTimeToTotal: number | null;
 }
 
-function parseCSV(csvContent: string): ShotData[] {
+function parseTimestamp(ts: string): number {
+  // Format: HH:MM:SS.mmm
+  const parts = ts.split(':');
+  if (parts.length !== 3) return 0;
+  const hours = parseInt(parts[0]) || 0;
+  const minutes = parseInt(parts[1]) || 0;
+  const secParts = parts[2].split('.');
+  const seconds = parseInt(secParts[0]) || 0;
+  const millis = parseInt(secParts[1]) || 0;
+  return (hours * 3600 + minutes * 60 + seconds) * 1000 + millis;
+}
+
+function parseCSV(csvContent: string): RawRow[] {
   const result = Papa.parse(csvContent, {
     header: false,
     skipEmptyLines: true
@@ -78,15 +102,110 @@ function parseCSV(csvContent: string): ShotData[] {
   });
 }
 
-function getCompletedShots(shots: ShotData[]): ShotData[] {
-  // Filter to only shots with complete data (totalDistance present)
-  return shots.filter(shot => shot.totalDistance !== null);
+function processShotTiming(rows: RawRow[]): ShotTimingData[] {
+  // Group rows by unique shot (golfer + hole + stroke)
+  const shotMap = new Map<string, RawRow[]>();
+
+  rows.forEach(row => {
+    const key = `${row.golfer}|${row.holeNumber}|${row.strokeNumber}`;
+    if (!shotMap.has(key)) {
+      shotMap.set(key, []);
+    }
+    shotMap.get(key)!.push(row);
+  });
+
+  const shots: ShotTimingData[] = [];
+
+  shotMap.forEach((shotRows) => {
+    // Sort by timestamp
+    shotRows.sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
+
+    const firstRow = shotRows[0];
+    const firstTime = parseTimestamp(firstRow.timestamp);
+
+    // Track when each field first appears
+    let timeToBallSpeed: number | null = null;
+    let timeToLaunchAngle: number | null = null;
+    let timeToApex: number | null = null;
+    let timeToCurve: number | null = null;
+    let timeToCarry: number | null = null;
+    let timeToTotal: number | null = null;
+
+    // Final values
+    let finalBallSpeed: number | null = null;
+    let finalLaunchAngle: number | null = null;
+    let finalApex: number | null = null;
+    let finalCurve: number | null = null;
+    let finalCarry: number | null = null;
+    let finalTotal: number | null = null;
+
+    shotRows.forEach(row => {
+      const rowTime = parseTimestamp(row.timestamp);
+      const delta = rowTime - firstTime;
+
+      if (row.ballSpeed !== null && timeToBallSpeed === null) {
+        timeToBallSpeed = delta;
+        finalBallSpeed = row.ballSpeed;
+      }
+      if (row.launchAngle !== null && timeToLaunchAngle === null) {
+        timeToLaunchAngle = delta;
+        finalLaunchAngle = row.launchAngle;
+      }
+      if (row.apex !== null && timeToApex === null) {
+        timeToApex = delta;
+        finalApex = row.apex;
+      }
+      if (row.curve !== null && timeToCurve === null) {
+        timeToCurve = delta;
+        finalCurve = row.curve;
+      }
+      if (row.carryDistance !== null && timeToCarry === null) {
+        timeToCarry = delta;
+        finalCarry = row.carryDistance;
+      }
+      if (row.totalDistance !== null && timeToTotal === null) {
+        timeToTotal = delta;
+        finalTotal = row.totalDistance;
+      }
+
+      // Update final values (in case they change)
+      if (row.ballSpeed !== null) finalBallSpeed = row.ballSpeed;
+      if (row.launchAngle !== null) finalLaunchAngle = row.launchAngle;
+      if (row.apex !== null) finalApex = row.apex;
+      if (row.curve !== null) finalCurve = row.curve;
+      if (row.carryDistance !== null) finalCarry = row.carryDistance;
+      if (row.totalDistance !== null) finalTotal = row.totalDistance;
+    });
+
+    // Only include shots that have at least total distance (completed shots)
+    if (finalTotal !== null) {
+      shots.push({
+        golfer: firstRow.golfer,
+        holeNumber: firstRow.holeNumber,
+        strokeNumber: firstRow.strokeNumber,
+        firstTimestamp: firstRow.timestamp,
+        ballSpeed: finalBallSpeed,
+        launchAngle: finalLaunchAngle,
+        apex: finalApex,
+        curve: finalCurve,
+        carryDistance: finalCarry,
+        totalDistance: finalTotal,
+        timeToBallSpeed,
+        timeToLaunchAngle,
+        timeToApex,
+        timeToCurve,
+        timeToCarry,
+        timeToTotal
+      });
+    }
+  });
+
+  return shots;
 }
 
-function calculateGolferStats(shots: ShotData[]): GolferStats[] {
-  const golferMap = new Map<string, ShotData[]>();
+function calculateGolferStats(shots: ShotTimingData[]): GolferStats[] {
+  const golferMap = new Map<string, ShotTimingData[]>();
 
-  // Group shots by golfer
   shots.forEach(shot => {
     if (!golferMap.has(shot.golfer)) {
       golferMap.set(shot.golfer, []);
@@ -94,30 +213,39 @@ function calculateGolferStats(shots: ShotData[]): GolferStats[] {
     golferMap.get(shot.golfer)!.push(shot);
   });
 
-  // Calculate stats for each golfer
   const stats: GolferStats[] = [];
+
+  const avg = (arr: (number | null)[]): number | null => {
+    const valid = arr.filter((v): v is number => v !== null);
+    return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+  };
+
+  const max = (arr: (number | null)[]): number | null => {
+    const valid = arr.filter((v): v is number => v !== null);
+    return valid.length > 0 ? Math.max(...valid) : null;
+  };
+
+  // Convert ms to seconds for averages
+  const avgToSeconds = (val: number | null): number | null => {
+    return val !== null ? val / 1000 : null;
+  };
+
   golferMap.forEach((golferShots, golfer) => {
-    const completedShots = getCompletedShots(golferShots);
-
-    const avg = (arr: (number | null)[]): number | null => {
-      const valid = arr.filter((v): v is number => v !== null);
-      return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
-    };
-
-    const max = (arr: (number | null)[]): number | null => {
-      const valid = arr.filter((v): v is number => v !== null);
-      return valid.length > 0 ? Math.max(...valid) : null;
-    };
-
     stats.push({
       golfer,
-      shots: completedShots,
-      avgBallSpeed: avg(completedShots.map(s => s.ballSpeed)),
-      avgLaunchAngle: avg(completedShots.map(s => s.launchAngle)),
-      avgApex: avg(completedShots.map(s => s.apex)),
-      avgCarryDistance: avg(completedShots.map(s => s.carryDistance)),
-      avgTotalDistance: avg(completedShots.map(s => s.totalDistance)),
-      maxTotalDistance: max(completedShots.map(s => s.totalDistance))
+      shots: golferShots,
+      avgBallSpeed: avg(golferShots.map(s => s.ballSpeed)),
+      avgLaunchAngle: avg(golferShots.map(s => s.launchAngle)),
+      avgApex: avg(golferShots.map(s => s.apex)),
+      avgCarryDistance: avg(golferShots.map(s => s.carryDistance)),
+      avgTotalDistance: avg(golferShots.map(s => s.totalDistance)),
+      maxTotalDistance: max(golferShots.map(s => s.totalDistance)),
+      avgTimeToBallSpeed: avgToSeconds(avg(golferShots.map(s => s.timeToBallSpeed))),
+      avgTimeToLaunchAngle: avgToSeconds(avg(golferShots.map(s => s.timeToLaunchAngle))),
+      avgTimeToApex: avgToSeconds(avg(golferShots.map(s => s.timeToApex))),
+      avgTimeToCurve: avgToSeconds(avg(golferShots.map(s => s.timeToCurve))),
+      avgTimeToCarry: avgToSeconds(avg(golferShots.map(s => s.timeToCarry))),
+      avgTimeToTotal: avgToSeconds(avg(golferShots.map(s => s.timeToTotal)))
     });
   });
 
@@ -137,12 +265,14 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     }
 
     const csvContent = req.file.buffer.toString('utf-8');
-    const shots = parseCSV(csvContent);
+    const rawRows = parseCSV(csvContent);
+    const shots = processShotTiming(rawRows);
     const golferStats = calculateGolferStats(shots);
 
     res.json({
       success: true,
-      totalRows: shots.length,
+      totalRows: rawRows.length,
+      completedShots: shots.length,
       golfers: golferStats.map(g => g.golfer),
       stats: golferStats
     });
