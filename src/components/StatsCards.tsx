@@ -17,13 +17,14 @@ export default function StatsCards({ stats }: Props) {
     { label: 'Max Distance', value: formatNumber(stats.maxTotalDistance), unit: 'yds' },
   ];
 
-  // Sequential deltas - time between each step
-  const deltaCards = [
-    { label: 'Speed → Launch', value: formatNumber(stats.avgDeltaSpeedToLaunch, 2), color: 'text-orange-400' },
-    { label: 'Launch → Apex', value: formatNumber(stats.avgDeltaLaunchToApex, 2), color: 'text-yellow-400' },
-    { label: 'Apex → Curve', value: formatNumber(stats.avgDeltaApexToCurve, 2), color: 'text-green-400' },
-    { label: 'Curve → Carry', value: formatNumber(stats.avgDeltaCurveToCarry, 2), color: 'text-blue-400' },
-    { label: 'Carry → Total', value: formatNumber(stats.avgDeltaCarryToTotal, 2), color: 'text-purple-400' },
+  // Time from first timestamp to each data point
+  const timeCards = [
+    { label: 'To Ball Speed', value: formatNumber(stats.avgTimeToBallSpeed, 2), color: 'text-red-400' },
+    { label: 'To Launch Angle', value: formatNumber(stats.avgTimeToLaunchAngle, 2), color: 'text-orange-400' },
+    { label: 'To Apex', value: formatNumber(stats.avgTimeToApex, 2), color: 'text-yellow-400' },
+    { label: 'To Curve', value: formatNumber(stats.avgTimeToCurve, 2), color: 'text-green-400' },
+    { label: 'To Carry', value: formatNumber(stats.avgTimeToCarry, 2), color: 'text-blue-400' },
+    { label: 'To Total', value: formatNumber(stats.avgTimeToTotal, 2), color: 'text-purple-400' },
   ];
 
   return (
@@ -44,10 +45,10 @@ export default function StatsCards({ stats }: Props) {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold mb-3 text-yellow-400">Avg Time Between Data Points (seconds)</h2>
-        <p className="text-sm text-gray-500 mb-3">Time gap between each successive data measurement</p>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {deltaCards.map(card => (
+        <h2 className="text-lg font-semibold mb-3 text-yellow-400">Time From First Timestamp (seconds)</h2>
+        <p className="text-sm text-gray-500 mb-3">How fast each data point arrives after the shot is first detected</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {timeCards.map(card => (
             <div key={card.label} className="bg-gray-800 rounded-lg p-4 border border-yellow-900/50">
               <div className="text-gray-400 text-sm mb-1">{card.label}</div>
               <div className={`text-2xl font-bold ${card.color}`}>
@@ -56,20 +57,6 @@ export default function StatsCards({ stats }: Props) {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      <div className="bg-gray-800 rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-gray-400">Total Time (First Data → All Complete):</span>
-            <span className="text-2xl font-bold text-white ml-3">
-              {formatNumber(stats.avgTimeToTotal, 2)}s
-            </span>
-          </div>
-          <div className="text-sm text-gray-500">
-            Average across {stats.shots.length} shots
-          </div>
         </div>
       </div>
     </div>

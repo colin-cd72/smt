@@ -5,3 +5,47 @@
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  header, footer {
+    display: none !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .bg-gray-900 {
+    background: white !important;
+  }
+
+  .bg-gray-800 {
+    background: white !important;
+    border: 1px solid #ccc !important;
+  }
+
+  .text-white, .text-gray-300, .text-gray-400 {
+    color: #333 !important;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+  }
+
+  @page {
+    margin: 0.5in;
+    size: landscape;
+  }
+}
