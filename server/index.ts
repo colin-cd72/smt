@@ -55,6 +55,11 @@ db.exec(`
     time_to_curve INTEGER,
     time_to_carry INTEGER,
     time_to_total INTEGER,
+    delta_speed_to_launch INTEGER,
+    delta_launch_to_apex INTEGER,
+    delta_apex_to_curve INTEGER,
+    delta_curve_to_carry INTEGER,
+    delta_carry_to_total INTEGER,
     FOREIGN KEY (match_id) REFERENCES matches(id)
   );
 
@@ -90,12 +95,19 @@ interface ShotTimingData {
   curve: number | null;
   carryDistance: number | null;
   totalDistance: number | null;
+  // Time from start to each metric (cumulative)
   timeToBallSpeed: number | null;
   timeToLaunchAngle: number | null;
   timeToApex: number | null;
   timeToCurve: number | null;
   timeToCarry: number | null;
   timeToTotal: number | null;
+  // Sequential deltas (time between each step)
+  deltaSpeedToLaunch: number | null;
+  deltaLaunchToApex: number | null;
+  deltaApexToCurve: number | null;
+  deltaCurveToCarry: number | null;
+  deltaCarryToTotal: number | null;
 }
 
 interface GolferStats {
@@ -113,6 +125,12 @@ interface GolferStats {
   avgTimeToCurve: number | null;
   avgTimeToCarry: number | null;
   avgTimeToTotal: number | null;
+  // Average sequential deltas
+  avgDeltaSpeedToLaunch: number | null;
+  avgDeltaLaunchToApex: number | null;
+  avgDeltaApexToCurve: number | null;
+  avgDeltaCurveToCarry: number | null;
+  avgDeltaCarryToTotal: number | null;
 }
 
 function parseTimestamp(ts: string): number {
@@ -220,6 +238,18 @@ function processShotTiming(rows: RawRow[]): ShotTimingData[] {
     });
 
     if (finalTotal !== null) {
+      // Calculate sequential deltas (time between each step)
+      const deltaSpeedToLaunch = (timeToBallSpeed !== null && timeToLaunchAngle !== null)
+        ? timeToLaunchAngle - timeToBallSpeed : null;
+      const deltaLaunchToApex = (timeToLaunchAngle !== null && timeToApex !== null)
+        ? timeToApex - timeToLaunchAngle : null;
+      const deltaApexToCurve = (timeToApex !== null && timeToCurve !== null)
+        ? timeToCurve - timeToApex : null;
+      const deltaCurveToCarry = (timeToCurve !== null && timeToCarry !== null)
+        ? timeToCarry - timeToCurve : null;
+      const deltaCarryToTotal = (timeToCarry !== null && timeToTotal !== null)
+        ? timeToTotal - timeToCarry : null;
+
       shots.push({
         golfer: firstRow.golfer,
         holeNumber: firstRow.holeNumber,
@@ -236,7 +266,12 @@ function processShotTiming(rows: RawRow[]): ShotTimingData[] {
         timeToApex,
         timeToCurve,
         timeToCarry,
-        timeToTotal
+        timeToTotal,
+        deltaSpeedToLaunch,
+        deltaLaunchToApex,
+        deltaApexToCurve,
+        deltaCurveToCarry,
+        deltaCarryToTotal
       });
     }
   });
@@ -285,7 +320,12 @@ function calculateGolferStats(shots: ShotTimingData[]): GolferStats[] {
       avgTimeToApex: avgToSeconds(avg(golferShots.map(s => s.timeToApex))),
       avgTimeToCurve: avgToSeconds(avg(golferShots.map(s => s.timeToCurve))),
       avgTimeToCarry: avgToSeconds(avg(golferShots.map(s => s.timeToCarry))),
-      avgTimeToTotal: avgToSeconds(avg(golferShots.map(s => s.timeToTotal)))
+      avgTimeToTotal: avgToSeconds(avg(golferShots.map(s => s.timeToTotal))),
+      avgDeltaSpeedToLaunch: avgToSeconds(avg(golferShots.map(s => s.deltaSpeedToLaunch))),
+      avgDeltaLaunchToApex: avgToSeconds(avg(golferShots.map(s => s.deltaLaunchToApex))),
+      avgDeltaApexToCurve: avgToSeconds(avg(golferShots.map(s => s.deltaApexToCurve))),
+      avgDeltaCurveToCarry: avgToSeconds(avg(golferShots.map(s => s.deltaCurveToCarry))),
+      avgDeltaCarryToTotal: avgToSeconds(avg(golferShots.map(s => s.deltaCarryToTotal)))
     });
   });
 
@@ -342,7 +382,12 @@ app.get('/api/matches/:matchNumber', (req, res) => {
       timeToApex: row.time_to_apex,
       timeToCurve: row.time_to_curve,
       timeToCarry: row.time_to_carry,
-      timeToTotal: row.time_to_total
+      timeToTotal: row.time_to_total,
+      deltaSpeedToLaunch: row.delta_speed_to_launch,
+      deltaLaunchToApex: row.delta_launch_to_apex,
+      deltaApexToCurve: row.delta_apex_to_curve,
+      deltaCurveToCarry: row.delta_curve_to_carry,
+      deltaCarryToTotal: row.delta_carry_to_total
     }));
 
     const golferStats = calculateGolferStats(shots);
@@ -398,8 +443,10 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
         match_id, golfer, hole_number, stroke_number, first_timestamp,
         ball_speed, launch_angle, apex, curve, carry_distance, total_distance,
         time_to_ball_speed, time_to_launch_angle, time_to_apex,
-        time_to_curve, time_to_carry, time_to_total
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        time_to_curve, time_to_carry, time_to_total,
+        delta_speed_to_launch, delta_launch_to_apex, delta_apex_to_curve,
+        delta_curve_to_carry, delta_carry_to_total
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertMany = db.transaction((shots: ShotTimingData[]) => {
@@ -421,7 +468,12 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
           shot.timeToApex,
           shot.timeToCurve,
           shot.timeToCarry,
-          shot.timeToTotal
+          shot.timeToTotal,
+          shot.deltaSpeedToLaunch,
+          shot.deltaLaunchToApex,
+          shot.deltaApexToCurve,
+          shot.deltaCurveToCarry,
+          shot.deltaCarryToTotal
         );
       }
     });

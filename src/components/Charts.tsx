@@ -53,48 +53,42 @@ const chartOptions = {
 };
 
 export default function Charts({ stats, allStats }: Props) {
-  // Time to data chart - shows how long each metric takes to populate
-  const timeToDataChart = {
+  // Sequential deltas chart - PRIMARY VIEW
+  // Shows time between each data step (Speed→Launch→Apex→Curve→Carry→Total)
+  const sequentialDeltasChart = {
     labels: stats.shots.map((s, i) => `H${s.holeNumber}-S${s.strokeNumber}`),
     datasets: [
       {
-        label: 'Ball Speed',
-        data: stats.shots.map(s => s.timeToBallSpeed !== null ? s.timeToBallSpeed / 1000 : null),
+        label: 'Speed → Launch',
+        data: stats.shots.map(s => s.deltaSpeedToLaunch !== null ? s.deltaSpeedToLaunch / 1000 : null),
         borderColor: 'rgba(239, 68, 68, 1)',
         backgroundColor: 'rgba(239, 68, 68, 0.5)',
         tension: 0.1,
       },
       {
-        label: 'Launch Angle',
-        data: stats.shots.map(s => s.timeToLaunchAngle !== null ? s.timeToLaunchAngle / 1000 : null),
+        label: 'Launch → Apex',
+        data: stats.shots.map(s => s.deltaLaunchToApex !== null ? s.deltaLaunchToApex / 1000 : null),
         borderColor: 'rgba(249, 115, 22, 1)',
         backgroundColor: 'rgba(249, 115, 22, 0.5)',
         tension: 0.1,
       },
       {
-        label: 'Apex',
-        data: stats.shots.map(s => s.timeToApex !== null ? s.timeToApex / 1000 : null),
+        label: 'Apex → Curve',
+        data: stats.shots.map(s => s.deltaApexToCurve !== null ? s.deltaApexToCurve / 1000 : null),
         borderColor: 'rgba(234, 179, 8, 1)',
         backgroundColor: 'rgba(234, 179, 8, 0.5)',
         tension: 0.1,
       },
       {
-        label: 'Curve',
-        data: stats.shots.map(s => s.timeToCurve !== null ? s.timeToCurve / 1000 : null),
+        label: 'Curve → Carry',
+        data: stats.shots.map(s => s.deltaCurveToCarry !== null ? s.deltaCurveToCarry / 1000 : null),
         borderColor: 'rgba(34, 197, 94, 1)',
         backgroundColor: 'rgba(34, 197, 94, 0.5)',
         tension: 0.1,
       },
       {
-        label: 'Carry',
-        data: stats.shots.map(s => s.timeToCarry !== null ? s.timeToCarry / 1000 : null),
-        borderColor: 'rgba(59, 130, 246, 1)',
-        backgroundColor: 'rgba(59, 130, 246, 0.5)',
-        tension: 0.1,
-      },
-      {
-        label: 'Total Distance',
-        data: stats.shots.map(s => s.timeToTotal !== null ? s.timeToTotal / 1000 : null),
+        label: 'Carry → Total',
+        data: stats.shots.map(s => s.deltaCarryToTotal !== null ? s.deltaCarryToTotal / 1000 : null),
         borderColor: 'rgba(168, 85, 247, 1)',
         backgroundColor: 'rgba(168, 85, 247, 0.5)',
         tension: 0.1,
@@ -102,33 +96,68 @@ export default function Charts({ stats, allStats }: Props) {
     ],
   };
 
-  // Average time to data by metric (bar chart)
-  const avgTimeToDataChart = {
-    labels: ['Ball Speed', 'Launch Angle', 'Apex', 'Curve', 'Carry', 'Total'],
+  // Average sequential deltas bar chart
+  const avgDeltasChart = {
+    labels: ['Speed→Launch', 'Launch→Apex', 'Apex→Curve', 'Curve→Carry', 'Carry→Total'],
     datasets: [
       {
-        label: 'Avg Time (seconds)',
+        label: 'Avg Time Between Steps (seconds)',
         data: [
-          stats.avgTimeToBallSpeed,
-          stats.avgTimeToLaunchAngle,
-          stats.avgTimeToApex,
-          stats.avgTimeToCurve,
-          stats.avgTimeToCarry,
-          stats.avgTimeToTotal,
+          stats.avgDeltaSpeedToLaunch,
+          stats.avgDeltaLaunchToApex,
+          stats.avgDeltaApexToCurve,
+          stats.avgDeltaCurveToCarry,
+          stats.avgDeltaCarryToTotal,
         ],
         backgroundColor: [
           'rgba(239, 68, 68, 0.7)',
           'rgba(249, 115, 22, 0.7)',
           'rgba(234, 179, 8, 0.7)',
           'rgba(34, 197, 94, 0.7)',
-          'rgba(59, 130, 246, 0.7)',
           'rgba(168, 85, 247, 0.7)',
         ],
       },
     ],
   };
 
-  // Golfer comparison - time to total distance
+  // Stacked bar showing cumulative time breakdown per shot
+  const stackedTimeChart = {
+    labels: stats.shots.map((s, i) => `H${s.holeNumber}-S${s.strokeNumber}`),
+    datasets: [
+      {
+        label: 'To Ball Speed',
+        data: stats.shots.map(s => s.timeToBallSpeed !== null ? s.timeToBallSpeed / 1000 : 0),
+        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+      },
+      {
+        label: 'Speed → Launch',
+        data: stats.shots.map(s => s.deltaSpeedToLaunch !== null ? s.deltaSpeedToLaunch / 1000 : 0),
+        backgroundColor: 'rgba(249, 115, 22, 0.7)',
+      },
+      {
+        label: 'Launch → Apex',
+        data: stats.shots.map(s => s.deltaLaunchToApex !== null ? s.deltaLaunchToApex / 1000 : 0),
+        backgroundColor: 'rgba(234, 179, 8, 0.7)',
+      },
+      {
+        label: 'Apex → Curve',
+        data: stats.shots.map(s => s.deltaApexToCurve !== null ? s.deltaApexToCurve / 1000 : 0),
+        backgroundColor: 'rgba(34, 197, 94, 0.7)',
+      },
+      {
+        label: 'Curve → Carry',
+        data: stats.shots.map(s => s.deltaCurveToCarry !== null ? s.deltaCurveToCarry / 1000 : 0),
+        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+      },
+      {
+        label: 'Carry → Total',
+        data: stats.shots.map(s => s.deltaCarryToTotal !== null ? s.deltaCarryToTotal / 1000 : 0),
+        backgroundColor: 'rgba(168, 85, 247, 0.7)',
+      },
+    ],
+  };
+
+  // Golfer comparison - average time to total
   const golferTimeComparison = {
     labels: allStats.map(s => s.golfer),
     datasets: [
@@ -144,32 +173,18 @@ export default function Charts({ stats, allStats }: Props) {
     ],
   };
 
-  // Distance per shot bar chart
-  const distanceData = {
-    labels: stats.shots.map((s, i) => `H${s.holeNumber}-S${s.strokeNumber}`),
-    datasets: [
-      {
-        label: 'Carry Distance',
-        data: stats.shots.map(s => s.carryDistance),
-        backgroundColor: 'rgba(34, 197, 94, 0.7)',
-      },
-      {
-        label: 'Total Distance',
-        data: stats.shots.map(s => s.totalDistance),
-        backgroundColor: 'rgba(59, 130, 246, 0.7)',
-      },
-    ],
-  };
-
   return (
     <div className="space-y-8">
-      {/* Time to Data - Primary Chart */}
+      {/* Sequential Deltas - PRIMARY CHART */}
       <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-2 text-gray-300">Time to Data by Shot</h3>
-        <p className="text-sm text-gray-500 mb-4">Shows how long (in seconds) after the first data point each metric was received</p>
+        <h3 className="text-xl font-semibold mb-2 text-yellow-400">Time Between Data Points</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Shows the time gap (in seconds) between each successive data point arriving.
+          Speed→Launch means time from Ball Speed to Launch Angle.
+        </p>
         <div className="h-80">
           <Line
-            data={timeToDataChart}
+            data={sequentialDeltasChart}
             options={{
               ...chartOptions,
               scales: {
@@ -185,13 +200,13 @@ export default function Charts({ stats, allStats }: Props) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Average Time to Data */}
+        {/* Average Deltas Bar Chart */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-2 text-gray-300">Average Time to Data</h3>
-          <p className="text-sm text-gray-500 mb-4">Average seconds from first data to each metric</p>
+          <h3 className="text-lg font-semibold mb-2 text-yellow-400">Avg Time Between Steps</h3>
+          <p className="text-sm text-gray-500 mb-4">Average seconds between each data stage</p>
           <div className="h-64">
             <Bar
-              data={avgTimeToDataChart}
+              data={avgDeltasChart}
               options={{
                 ...chartOptions,
                 plugins: { ...chartOptions.plugins, legend: { display: false } },
@@ -207,10 +222,10 @@ export default function Charts({ stats, allStats }: Props) {
           </div>
         </div>
 
-        {/* Golfer Comparison - Time to Total */}
+        {/* Golfer Comparison */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-2 text-gray-300">Golfer Comparison - Time to Total</h3>
-          <p className="text-sm text-gray-500 mb-4">Average time to receive total distance by golfer</p>
+          <h3 className="text-lg font-semibold mb-2 text-gray-300">Golfer Comparison - Total Time</h3>
+          <p className="text-sm text-gray-500 mb-4">Average time to receive all data by golfer</p>
           <div className="h-64">
             <Bar
               data={golferTimeComparison}
@@ -228,58 +243,47 @@ export default function Charts({ stats, allStats }: Props) {
             />
           </div>
         </div>
+      </div>
 
-        {/* Distance per shot */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-300">Distance by Shot</h3>
-          <div className="h-64">
-            <Bar data={distanceData} options={chartOptions} />
-          </div>
-        </div>
-
-        {/* Golfer comparison - distance */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gray-300">Golfer Comparison - Avg Distance</h3>
-          <div className="h-64">
-            <Bar
-              data={{
-                labels: allStats.map(s => s.golfer),
-                datasets: [
-                  {
-                    label: 'Avg Total Distance',
-                    data: allStats.map(s => s.avgTotalDistance),
-                    backgroundColor: allStats.map(s =>
-                      s.golfer === stats.golfer
-                        ? 'rgba(34, 197, 94, 0.8)'
-                        : 'rgba(107, 114, 128, 0.6)'
-                    ),
-                  },
-                ],
-              }}
-              options={{
-                ...chartOptions,
-                plugins: { ...chartOptions.plugins, legend: { display: false } },
-              }}
-            />
-          </div>
+      {/* Stacked Time Breakdown */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-2 text-gray-300">Time Breakdown per Shot (Stacked)</h3>
+        <p className="text-sm text-gray-500 mb-4">Shows how total time is distributed across each data stage</p>
+        <div className="h-64">
+          <Bar
+            data={stackedTimeChart}
+            options={{
+              ...chartOptions,
+              scales: {
+                ...chartOptions.scales,
+                x: { ...chartOptions.scales.x, stacked: true },
+                y: {
+                  ...chartOptions.scales.y,
+                  stacked: true,
+                  title: { display: true, text: 'Seconds', color: '#9CA3AF' },
+                },
+              },
+            }}
+          />
         </div>
       </div>
 
-      {/* Shot details table */}
+      {/* Shot details table with deltas */}
       <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4 text-gray-300">Shot Details with Timing</h3>
+        <h3 className="text-lg font-semibold mb-4 text-gray-300">Shot Details - Sequential Timing</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-400 border-b border-gray-700">
                 <th className="pb-3 pr-4">Hole</th>
                 <th className="pb-3 pr-4">Stroke</th>
-                <th className="pb-3 pr-4">Ball Speed</th>
                 <th className="pb-3 pr-4">Total Dist</th>
-                <th className="pb-3 pr-4 text-yellow-400">Time to Speed</th>
-                <th className="pb-3 pr-4 text-yellow-400">Time to Apex</th>
-                <th className="pb-3 pr-4 text-yellow-400">Time to Carry</th>
-                <th className="pb-3 text-yellow-400">Time to Total</th>
+                <th className="pb-3 pr-4 text-red-400">→Speed</th>
+                <th className="pb-3 pr-4 text-orange-400">→Launch</th>
+                <th className="pb-3 pr-4 text-yellow-400">→Apex</th>
+                <th className="pb-3 pr-4 text-green-400">→Curve</th>
+                <th className="pb-3 pr-4 text-blue-400">→Carry</th>
+                <th className="pb-3 text-purple-400">→Total</th>
               </tr>
             </thead>
             <tbody>
@@ -287,12 +291,13 @@ export default function Charts({ stats, allStats }: Props) {
                 <tr key={i} className="border-b border-gray-700/50">
                   <td className="py-2 pr-4">{shot.holeNumber}</td>
                   <td className="py-2 pr-4">{shot.strokeNumber}</td>
-                  <td className="py-2 pr-4">{shot.ballSpeed?.toFixed(1) ?? '-'} mph</td>
-                  <td className="py-2 pr-4 font-semibold text-green-400">{shot.totalDistance?.toFixed(1) ?? '-'} yds</td>
-                  <td className="py-2 pr-4 text-yellow-300">{shot.timeToBallSpeed !== null ? (shot.timeToBallSpeed / 1000).toFixed(2) : '-'}s</td>
-                  <td className="py-2 pr-4 text-yellow-300">{shot.timeToApex !== null ? (shot.timeToApex / 1000).toFixed(2) : '-'}s</td>
-                  <td className="py-2 pr-4 text-yellow-300">{shot.timeToCarry !== null ? (shot.timeToCarry / 1000).toFixed(2) : '-'}s</td>
-                  <td className="py-2 text-yellow-300 font-semibold">{shot.timeToTotal !== null ? (shot.timeToTotal / 1000).toFixed(2) : '-'}s</td>
+                  <td className="py-2 pr-4 font-semibold text-green-400">{shot.totalDistance?.toFixed(0) ?? '-'} yds</td>
+                  <td className="py-2 pr-4 text-red-300">{shot.timeToBallSpeed !== null ? (shot.timeToBallSpeed / 1000).toFixed(2) : '-'}s</td>
+                  <td className="py-2 pr-4 text-orange-300">{shot.deltaSpeedToLaunch !== null ? (shot.deltaSpeedToLaunch / 1000).toFixed(2) : '-'}s</td>
+                  <td className="py-2 pr-4 text-yellow-300">{shot.deltaLaunchToApex !== null ? (shot.deltaLaunchToApex / 1000).toFixed(2) : '-'}s</td>
+                  <td className="py-2 pr-4 text-green-300">{shot.deltaApexToCurve !== null ? (shot.deltaApexToCurve / 1000).toFixed(2) : '-'}s</td>
+                  <td className="py-2 pr-4 text-blue-300">{shot.deltaCurveToCarry !== null ? (shot.deltaCurveToCarry / 1000).toFixed(2) : '-'}s</td>
+                  <td className="py-2 text-purple-300 font-semibold">{shot.deltaCarryToTotal !== null ? (shot.deltaCarryToTotal / 1000).toFixed(2) : '-'}s</td>
                 </tr>
               ))}
             </tbody>

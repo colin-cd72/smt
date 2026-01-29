@@ -9,12 +9,19 @@ export interface ShotTimingData {
   curve: number | null;
   carryDistance: number | null;
   totalDistance: number | null;
+  // Time from start to each metric (cumulative)
   timeToBallSpeed: number | null;
   timeToLaunchAngle: number | null;
   timeToApex: number | null;
   timeToCurve: number | null;
   timeToCarry: number | null;
   timeToTotal: number | null;
+  // Sequential deltas (time between each step)
+  deltaSpeedToLaunch: number | null;
+  deltaLaunchToApex: number | null;
+  deltaApexToCurve: number | null;
+  deltaCurveToCarry: number | null;
+  deltaCarryToTotal: number | null;
 }
 
 export interface GolferStats {
@@ -32,6 +39,12 @@ export interface GolferStats {
   avgTimeToCurve: number | null;
   avgTimeToCarry: number | null;
   avgTimeToTotal: number | null;
+  // Average sequential deltas
+  avgDeltaSpeedToLaunch: number | null;
+  avgDeltaLaunchToApex: number | null;
+  avgDeltaApexToCurve: number | null;
+  avgDeltaCurveToCarry: number | null;
+  avgDeltaCarryToTotal: number | null;
 }
 
 export interface Match {
