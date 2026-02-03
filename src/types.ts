@@ -87,17 +87,18 @@ export interface CompareResponse {
 }
 
 export interface TimingDiffs {
-  avgTimeToBallSpeed: number | null;
-  avgTimeToLaunchAngle: number | null;
-  avgTimeToApex: number | null;
-  avgTimeToCurve: number | null;
-  avgTimeToCarry: number | null;
-  avgTimeToTotal: number | null;
+  timeToBallSpeed: number | null;
+  timeToLaunchAngle: number | null;
+  timeToApex: number | null;
+  timeToCurve: number | null;
+  timeToCarry: number | null;
+  timeToTotal: number | null;
 }
 
-export interface GolferComparison {
-  golfer: string;
-  matchA: GolferStats | null;
-  matchB: GolferStats | null;
+export interface ShotPositionComparison {
+  holeNumber: number;
+  strokeNumber: number;
+  shotA: ShotTimingData | null;
+  shotB: ShotTimingData | null;
   diffs: TimingDiffs;
 }
