@@ -78,7 +78,7 @@ function isOutlier(value: number | null, avgAbsDiff: number | null, threshold: n
 }
 
 function DiffCell({ value, outlier }: { value: number | null; outlier?: boolean }) {
-  if (value === null) return <td className="py-2 pr-2 text-gray-500">-</td>;
+  if (value === null) return <td className="col-diff py-2 pr-2 text-gray-500">-</td>;
   const improved = value < -0.005;
   const worse = value > 0.005;
   const color = improved
@@ -88,9 +88,9 @@ function DiffCell({ value, outlier }: { value: number | null; outlier?: boolean 
     : 'text-gray-400 print:text-gray-500';
   const prefix = improved ? '' : worse ? '+' : '';
   return (
-    <td className={`py-2 pr-2 font-bold ${color}`}>
-      {outlier && <span className="mr-0.5" title="Outlier - significantly different from average">!!</span>}
-      {prefix}{value.toFixed(2)}s
+    <td className={`col-diff py-2 pr-2 font-bold ${color}`}>
+      {outlier && <span className="mr-0.5" title="Outlier">!</span>}
+      {prefix}{value.toFixed(2)}
     </td>
   );
 }
@@ -212,17 +212,17 @@ export default function MatchCompareView({ data }: Props) {
   return (
     <div className="space-y-6">
       {/* Verdict Banner */}
-      <div className={`rounded-xl p-6 text-center print:border-2 ${
+      <div className={`print-verdict rounded-xl p-6 text-center print:border-2 ${
         overallFaster
           ? 'bg-green-900/40 border border-green-500/50 print:bg-green-50 print:border-green-500'
           : overallSlower
           ? 'bg-red-900/40 border border-red-500/50 print:bg-red-50 print:border-red-500'
           : 'bg-gray-800 border border-gray-600 print:bg-gray-50 print:border-gray-400'
       }`}>
-        <div className="text-sm uppercase tracking-wider text-gray-400 print:text-gray-600 mb-1">
-          Overall Verdict
+        <div className="verdict-sub text-sm uppercase tracking-wider text-gray-400 print:text-gray-600 mb-1">
+          Overall Verdict — <span className="text-blue-400 print:text-blue-600">A: {data.matchA.matchNumber}</span> vs <span className="text-orange-400 print:text-orange-600">B: {data.matchB.matchNumber}</span>
         </div>
-        <div className={`text-3xl font-black mb-2 ${
+        <div className={`verdict-title text-3xl font-black mb-2 ${
           overallFaster
             ? 'text-green-400 print:text-green-700'
             : overallSlower
@@ -231,77 +231,56 @@ export default function MatchCompareView({ data }: Props) {
         }`}>
           {overallDiff !== null
             ? overallFaster
-              ? `${data.matchB.matchNumber} was ${Math.abs(overallDiff).toFixed(2)}s faster`
+              ? `B was ${Math.abs(overallDiff).toFixed(2)}s faster on avg`
               : overallSlower
-              ? `${data.matchB.matchNumber} was ${Math.abs(overallDiff).toFixed(2)}s slower`
+              ? `B was ${Math.abs(overallDiff).toFixed(2)}s slower on avg`
               : 'No significant difference'
             : 'Insufficient data for comparison'}
         </div>
-        <div className="text-sm text-gray-400 print:text-gray-600">
-          Average total time difference across {matched.length} matched shot positions
-        </div>
-
-        {/* Win/Loss/Tie breakdown */}
-        <div className="flex justify-center gap-6 mt-4 text-sm">
-          <div>
-            <span className="text-green-400 print:text-green-600 font-bold text-lg">{bFasterCount}</span>
-            <span className="text-gray-400 print:text-gray-600 ml-1">shots faster in B</span>
-          </div>
-          <div>
-            <span className="text-red-400 print:text-red-600 font-bold text-lg">{bSlowerCount}</span>
-            <span className="text-gray-400 print:text-gray-600 ml-1">shots slower in B</span>
-          </div>
-          {tiedCount > 0 && (
-            <div>
-              <span className="text-gray-300 print:text-gray-600 font-bold text-lg">{tiedCount}</span>
-              <span className="text-gray-400 print:text-gray-600 ml-1">tied</span>
-            </div>
+        <div className="verdict-sub text-sm text-gray-400 print:text-gray-600">
+          {matched.length} matched positions |
+          <span className="text-green-400 print:text-green-600 font-bold ml-1">{bFasterCount}</span> faster in B,
+          <span className="text-red-400 print:text-red-600 font-bold ml-1">{bSlowerCount}</span> slower,
+          <span className="font-bold ml-1">{tiedCount}</span> tied
+          {outlierCount > 0 && (
+            <span className="text-yellow-400 print:text-yellow-700 ml-2">| {outlierCount} outlier{outlierCount > 1 ? 's' : ''} (!)</span>
           )}
         </div>
-
-        {outlierCount > 0 && (
-          <div className="mt-3 text-yellow-400 print:text-yellow-700 text-sm font-semibold">
-            {outlierCount} shot{outlierCount > 1 ? 's' : ''} flagged as outlier{outlierCount > 1 ? 's' : ''} (!! in table below)
-          </div>
-        )}
       </div>
 
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start print:hidden">
         <div>
-          <h2 className="text-2xl font-bold text-yellow-400 print:text-black">
+          <h2 className="text-2xl font-bold text-yellow-400">
             Match Comparison by Shot Position
           </h2>
           <div className="mt-2 flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
               <span className="inline-block w-3 h-3 rounded bg-blue-500"></span>
-              <span className="text-blue-400 print:text-blue-600 font-semibold">
+              <span className="text-blue-400 font-semibold">
                 A: {data.matchA.matchNumber}
               </span>
               {data.matchA.description && (
-                <span className="text-gray-500 print:text-gray-600">- {data.matchA.description}</span>
+                <span className="text-gray-500">- {data.matchA.description}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
               <span className="inline-block w-3 h-3 rounded bg-orange-500"></span>
-              <span className="text-orange-400 print:text-orange-600 font-semibold">
+              <span className="text-orange-400 font-semibold">
                 B: {data.matchB.matchNumber}
               </span>
               {data.matchB.description && (
-                <span className="text-gray-500 print:text-gray-600">- {data.matchB.description}</span>
+                <span className="text-gray-500">- {data.matchB.description}</span>
               )}
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2 print:text-gray-600">
-            Matched by Hole + Stroke | Green = faster in B (improved) | Red = slower in B (worse) | !! = outlier
-          </p>
-          <p className="text-xs text-gray-500 print:text-gray-600">
-            {matched.length} matched positions | {comparisons.length - matched.length} unmatched
+          <p className="text-xs text-gray-500 mt-2">
+            Green = faster in B (improved) | Red = slower in B (worse) | ! = outlier
           </p>
         </div>
         <button
           onClick={handlePrint}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors print:hidden"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
         >
           Print Comparison
         </button>
@@ -309,29 +288,29 @@ export default function MatchCompareView({ data }: Props) {
 
       {/* Average Diffs Summary */}
       <div className="print-section bg-gray-800 rounded-lg p-4 print:bg-white print:border print:border-gray-300">
-        <h3 className="text-lg font-semibold mb-3 text-yellow-400 print:text-black">
-          Average Time Difference (B - A) Across {matched.length} Matched Positions
+        <h3 className="text-lg font-semibold mb-3 text-yellow-400 print:text-black print:text-sm print:mb-1">
+          Avg Time Diff (B - A)
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="print-avg-cards grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {([
-            ['Speed', avgDiffs.timeToBallSpeed, 'text-red-400 print:text-red-600'],
-            ['Launch', avgDiffs.timeToLaunchAngle, 'text-orange-400 print:text-orange-600'],
-            ['Apex', avgDiffs.timeToApex, 'text-yellow-400 print:text-yellow-600'],
-            ['Curve', avgDiffs.timeToCurve, 'text-green-400 print:text-green-600'],
-            ['Carry', avgDiffs.timeToCarry, 'text-blue-400 print:text-blue-600'],
-            ['Total', avgDiffs.timeToTotal, 'text-purple-400 print:text-purple-600'],
-          ] as [string, number | null, string][]).map(([label, val, _labelColor]) => {
+            ['Speed', avgDiffs.timeToBallSpeed],
+            ['Launch', avgDiffs.timeToLaunchAngle],
+            ['Apex', avgDiffs.timeToApex],
+            ['Curve', avgDiffs.timeToCurve],
+            ['Carry', avgDiffs.timeToCarry],
+            ['Total', avgDiffs.timeToTotal],
+          ] as [string, number | null][]).map(([label, val]) => {
             const improved = val !== null && val < -0.005;
             const worse = val !== null && val > 0.005;
             const color = improved ? 'text-green-400' : worse ? 'text-red-400' : 'text-gray-400';
             const prefix = val !== null ? (improved ? '' : worse ? '+' : '') : '';
             return (
               <div key={label} className="bg-gray-700/50 rounded-lg p-3 print:bg-gray-50 print:border print:border-gray-200">
-                <div className="text-gray-400 text-sm mb-1 print:text-gray-600">{label}</div>
-                <div className={`text-2xl font-bold ${color}`}>
+                <div className="avg-label text-gray-400 text-sm mb-1 print:text-gray-600">{label}</div>
+                <div className={`avg-value text-2xl font-bold ${color}`}>
                   {val !== null ? `${prefix}${val.toFixed(2)}s` : '-'}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="avg-label text-xs text-gray-500 mt-1">
                   {val !== null
                     ? improved ? 'B faster' : worse ? 'B slower' : 'Same'
                     : ''}
@@ -343,20 +322,20 @@ export default function MatchCompareView({ data }: Props) {
       </div>
 
       {/* Shot Position Comparison Table */}
-      <div className="print-section bg-gray-800 rounded-lg p-4 print:bg-white print:border print:border-gray-300">
-        <h3 className="text-lg font-semibold mb-1 text-yellow-400 print:text-black">
+      <div className="print-section-flow bg-gray-800 rounded-lg p-4 print:bg-white print:border print:border-gray-300 print:rounded-none">
+        <h3 className="text-lg font-semibold mb-1 text-yellow-400 print:text-black print:text-sm">
           Shot-by-Shot Comparison (seconds from first timestamp)
         </h3>
-        <p className="text-xs text-gray-500 mb-3 print:text-gray-600">
-          Rows highlighted in yellow are outliers — timing differences significantly larger than average
+        <p className="text-xs text-gray-500 mb-3 print:text-gray-600 print:mb-1" style={{ fontSize: '0.6rem' }}>
+          Yellow rows = outliers (! marker) | Green diff = B faster | Red diff = B slower
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs compare-table">
             <thead>
               <tr className="text-left text-gray-400 border-b-2 border-gray-600 print:text-black print:border-gray-400">
-                <th className="pb-2 pr-2" rowSpan={2}>Pos</th>
-                <th className="pb-2 pr-2" rowSpan={2}>Golfer A</th>
-                <th className="pb-2 pr-2" rowSpan={2}>Golfer B</th>
+                <th className="col-pos pb-2 pr-2" rowSpan={2}>Pos</th>
+                <th className="col-golfer pb-2 pr-2" rowSpan={2}>A</th>
+                <th className="col-golfer pb-2 pr-2" rowSpan={2}>B</th>
                 <th className="pb-1 pr-2 text-center text-red-400 print:text-red-600" colSpan={3}>Speed</th>
                 <th className="pb-1 pr-2 text-center text-orange-400 print:text-orange-600" colSpan={3}>Launch</th>
                 <th className="pb-1 pr-2 text-center text-yellow-400 print:text-yellow-600" colSpan={3}>Apex</th>
@@ -365,24 +344,24 @@ export default function MatchCompareView({ data }: Props) {
                 <th className="pb-1 text-center text-purple-400 print:text-purple-600" colSpan={3}>Total</th>
               </tr>
               <tr className="text-left text-gray-500 border-b border-gray-700 print:text-gray-600 print:border-gray-300" style={{ fontSize: '0.6rem' }}>
-                <th className="pb-1 pr-1 text-blue-400">A</th>
-                <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Diff</th>
-                <th className="pb-1 pr-1 text-blue-400">A</th>
-                <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Diff</th>
-                <th className="pb-1 pr-1 text-blue-400">A</th>
-                <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Diff</th>
-                <th className="pb-1 pr-1 text-blue-400">A</th>
-                <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Diff</th>
-                <th className="pb-1 pr-1 text-blue-400">A</th>
-                <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Diff</th>
-                <th className="pb-1 pr-1 text-blue-400">A</th>
-                <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1">Diff</th>
+                <th className="col-val pb-1 pr-1 text-blue-400">A</th>
+                <th className="col-val pb-1 pr-1 text-orange-400">B</th>
+                <th className="col-diff pb-1 pr-2">Diff</th>
+                <th className="col-val pb-1 pr-1 text-blue-400">A</th>
+                <th className="col-val pb-1 pr-1 text-orange-400">B</th>
+                <th className="col-diff pb-1 pr-2">Diff</th>
+                <th className="col-val pb-1 pr-1 text-blue-400">A</th>
+                <th className="col-val pb-1 pr-1 text-orange-400">B</th>
+                <th className="col-diff pb-1 pr-2">Diff</th>
+                <th className="col-val pb-1 pr-1 text-blue-400">A</th>
+                <th className="col-val pb-1 pr-1 text-orange-400">B</th>
+                <th className="col-diff pb-1 pr-2">Diff</th>
+                <th className="col-val pb-1 pr-1 text-blue-400">A</th>
+                <th className="col-val pb-1 pr-1 text-orange-400">B</th>
+                <th className="col-diff pb-1 pr-2">Diff</th>
+                <th className="col-val pb-1 pr-1 text-blue-400">A</th>
+                <th className="col-val pb-1 pr-1 text-orange-400">B</th>
+                <th className="col-diff pb-1">Diff</th>
               </tr>
             </thead>
             <tbody>
@@ -398,39 +377,39 @@ export default function MatchCompareView({ data }: Props) {
                       ${(onlyA || onlyB) ? 'opacity-50' : ''}
                       ${rowIsOutlier ? 'bg-yellow-900/30 print:bg-yellow-50' : ''}`}
                   >
-                    <td className={`py-1 pr-2 font-semibold text-white print:text-black ${rowIsOutlier ? 'text-yellow-300 print:text-yellow-700' : ''}`}>
-                      {rowIsOutlier && <span className="mr-1 text-yellow-400 print:text-yellow-600" title="Outlier shot">!!</span>}
-                      H{c.holeNumber}-S{c.strokeNumber}
+                    <td className={`col-pos py-1 pr-2 font-semibold text-white print:text-black ${rowIsOutlier ? 'text-yellow-300 print:text-yellow-700' : ''}`}>
+                      {rowIsOutlier && <span className="mr-0.5 text-yellow-400 print:text-yellow-600" title="Outlier">!</span>}
+                      H{c.holeNumber}S{c.strokeNumber}
                     </td>
-                    <td className="py-1 pr-2 text-blue-300 print:text-blue-600">
+                    <td className="col-golfer py-1 pr-2 text-blue-300 print:text-blue-600 truncate" title={c.shotA?.golfer ?? ''}>
                       {c.shotA?.golfer ?? '-'}
                     </td>
-                    <td className="py-1 pr-2 text-orange-300 print:text-orange-600">
+                    <td className="col-golfer py-1 pr-2 text-orange-300 print:text-orange-600 truncate" title={c.shotB?.golfer ?? ''}>
                       {c.shotB?.golfer ?? '-'}
                     </td>
                     {/* Speed */}
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToBallSpeed ?? null)}</td>
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToBallSpeed ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToBallSpeed ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToBallSpeed ?? null)}</td>
                     <DiffCell value={c.diffs.timeToBallSpeed} outlier={isOutlier(c.diffs.timeToBallSpeed, avgAbsDiffs.timeToBallSpeed)} />
                     {/* Launch */}
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToLaunchAngle ?? null)}</td>
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToLaunchAngle ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToLaunchAngle ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToLaunchAngle ?? null)}</td>
                     <DiffCell value={c.diffs.timeToLaunchAngle} outlier={isOutlier(c.diffs.timeToLaunchAngle, avgAbsDiffs.timeToLaunchAngle)} />
                     {/* Apex */}
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToApex ?? null)}</td>
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToApex ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToApex ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToApex ?? null)}</td>
                     <DiffCell value={c.diffs.timeToApex} outlier={isOutlier(c.diffs.timeToApex, avgAbsDiffs.timeToApex)} />
                     {/* Curve */}
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToCurve ?? null)}</td>
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToCurve ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToCurve ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToCurve ?? null)}</td>
                     <DiffCell value={c.diffs.timeToCurve} outlier={isOutlier(c.diffs.timeToCurve, avgAbsDiffs.timeToCurve)} />
                     {/* Carry */}
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToCarry ?? null)}</td>
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToCarry ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToCarry ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToCarry ?? null)}</td>
                     <DiffCell value={c.diffs.timeToCarry} outlier={isOutlier(c.diffs.timeToCarry, avgAbsDiffs.timeToCarry)} />
                     {/* Total */}
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToTotal ?? null)}</td>
-                    <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToTotal ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToTotal ?? null)}</td>
+                    <td className="col-val py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToTotal ?? null)}</td>
                     <DiffCell value={c.diffs.timeToTotal} outlier={isOutlier(c.diffs.timeToTotal, avgAbsDiffs.timeToTotal)} />
                   </tr>
                 );
