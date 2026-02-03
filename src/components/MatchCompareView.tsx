@@ -29,7 +29,6 @@ function buildPositionComparisons(
   shotsA: ShotTimingData[],
   shotsB: ShotTimingData[]
 ): ShotPositionComparison[] {
-  // Build maps keyed by "hole-stroke"
   const mapA = new Map<string, ShotTimingData>();
   const mapB = new Map<string, ShotTimingData>();
 
@@ -37,7 +36,6 @@ function buildPositionComparisons(
   shotsB.forEach(s => mapB.set(`${s.holeNumber}-${s.strokeNumber}`, s));
 
   const allKeys = new Set([...mapA.keys(), ...mapB.keys()]);
-
   const comparisons: ShotPositionComparison[] = [];
 
   Array.from(allKeys)
@@ -51,7 +49,6 @@ function buildPositionComparisons(
       const shotB = mapB.get(key) || null;
       const [holeNumber, strokeNumber] = key.split('-').map(Number);
 
-      // Convert ms to seconds for diffs
       const toSec = (v: number | null) => v !== null ? v / 1000 : null;
 
       const diffs: TimingDiffs = {
@@ -69,17 +66,18 @@ function buildPositionComparisons(
   return comparisons;
 }
 
-function formatNum(value: number | null, decimals: number = 2): string {
-  if (value === null) return '-';
-  return value.toFixed(decimals);
-}
-
 function formatMs(value: number | null): string {
   if (value === null) return '-';
   return (value / 1000).toFixed(2);
 }
 
-function DiffCell({ value }: { value: number | null }) {
+// Determine if a diff value is an outlier (> threshold * avg absolute diff)
+function isOutlier(value: number | null, avgAbsDiff: number | null, threshold: number = 2.0): boolean {
+  if (value === null || avgAbsDiff === null || avgAbsDiff === 0) return false;
+  return Math.abs(value) > threshold * avgAbsDiff;
+}
+
+function DiffCell({ value, outlier }: { value: number | null; outlier?: boolean }) {
   if (value === null) return <td className="py-2 pr-2 text-gray-500">-</td>;
   const improved = value < -0.005;
   const worse = value > 0.005;
@@ -91,6 +89,7 @@ function DiffCell({ value }: { value: number | null }) {
   const prefix = improved ? '' : worse ? '+' : '';
   return (
     <td className={`py-2 pr-2 font-bold ${color}`}>
+      {outlier && <span className="mr-0.5" title="Outlier - significantly different from average">!!</span>}
       {prefix}{value.toFixed(2)}s
     </td>
   );
@@ -128,6 +127,12 @@ export default function MatchCompareView({ data }: Props) {
     return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   };
 
+  // Average of absolute values (for outlier detection)
+  const avgAbsDiff = (field: keyof TimingDiffs) => {
+    const vals = matched.map(c => c.diffs[field]).filter((v): v is number => v !== null);
+    return vals.length > 0 ? vals.reduce((a, b) => a + Math.abs(b), 0) / vals.length : null;
+  };
+
   const avgDiffs: TimingDiffs = {
     timeToBallSpeed: avgDiff('timeToBallSpeed'),
     timeToLaunchAngle: avgDiff('timeToLaunchAngle'),
@@ -136,6 +141,39 @@ export default function MatchCompareView({ data }: Props) {
     timeToCarry: avgDiff('timeToCarry'),
     timeToTotal: avgDiff('timeToTotal'),
   };
+
+  const avgAbsDiffs: Record<keyof TimingDiffs, number | null> = {
+    timeToBallSpeed: avgAbsDiff('timeToBallSpeed'),
+    timeToLaunchAngle: avgAbsDiff('timeToLaunchAngle'),
+    timeToApex: avgAbsDiff('timeToApex'),
+    timeToCurve: avgAbsDiff('timeToCurve'),
+    timeToCarry: avgAbsDiff('timeToCarry'),
+    timeToTotal: avgAbsDiff('timeToTotal'),
+  };
+
+  // Overall verdict based on Total time diff
+  const overallDiff = avgDiffs.timeToTotal;
+  const overallFaster = overallDiff !== null && overallDiff < -0.005;
+  const overallSlower = overallDiff !== null && overallDiff > 0.005;
+
+  // Count outlier shots (any metric > 2x avg absolute diff)
+  const outlierFields: (keyof TimingDiffs)[] = [
+    'timeToBallSpeed', 'timeToLaunchAngle', 'timeToApex',
+    'timeToCurve', 'timeToCarry', 'timeToTotal',
+  ];
+
+  const isRowOutlier = (c: ShotPositionComparison) => {
+    return outlierFields.some(field =>
+      isOutlier(c.diffs[field], avgAbsDiffs[field], 2.0)
+    );
+  };
+
+  const outlierCount = matched.filter(isRowOutlier).length;
+
+  // Count how many shots B was faster vs slower (using timeToTotal)
+  const bFasterCount = matched.filter(c => c.diffs.timeToTotal !== null && c.diffs.timeToTotal < -0.005).length;
+  const bSlowerCount = matched.filter(c => c.diffs.timeToTotal !== null && c.diffs.timeToTotal > 0.005).length;
+  const tiedCount = matched.length - bFasterCount - bSlowerCount;
 
   // Diff chart per matched shot position
   const shotLabels = matched.map(c => `H${c.holeNumber}-S${c.strokeNumber}`);
@@ -173,21 +211,89 @@ export default function MatchCompareView({ data }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Verdict Banner */}
+      <div className={`rounded-xl p-6 text-center print:border-2 ${
+        overallFaster
+          ? 'bg-green-900/40 border border-green-500/50 print:bg-green-50 print:border-green-500'
+          : overallSlower
+          ? 'bg-red-900/40 border border-red-500/50 print:bg-red-50 print:border-red-500'
+          : 'bg-gray-800 border border-gray-600 print:bg-gray-50 print:border-gray-400'
+      }`}>
+        <div className="text-sm uppercase tracking-wider text-gray-400 print:text-gray-600 mb-1">
+          Overall Verdict
+        </div>
+        <div className={`text-3xl font-black mb-2 ${
+          overallFaster
+            ? 'text-green-400 print:text-green-700'
+            : overallSlower
+            ? 'text-red-400 print:text-red-700'
+            : 'text-gray-300 print:text-gray-600'
+        }`}>
+          {overallDiff !== null
+            ? overallFaster
+              ? `${data.matchB.matchNumber} was ${Math.abs(overallDiff).toFixed(2)}s faster`
+              : overallSlower
+              ? `${data.matchB.matchNumber} was ${Math.abs(overallDiff).toFixed(2)}s slower`
+              : 'No significant difference'
+            : 'Insufficient data for comparison'}
+        </div>
+        <div className="text-sm text-gray-400 print:text-gray-600">
+          Average total time difference across {matched.length} matched shot positions
+        </div>
+
+        {/* Win/Loss/Tie breakdown */}
+        <div className="flex justify-center gap-6 mt-4 text-sm">
+          <div>
+            <span className="text-green-400 print:text-green-600 font-bold text-lg">{bFasterCount}</span>
+            <span className="text-gray-400 print:text-gray-600 ml-1">shots faster in B</span>
+          </div>
+          <div>
+            <span className="text-red-400 print:text-red-600 font-bold text-lg">{bSlowerCount}</span>
+            <span className="text-gray-400 print:text-gray-600 ml-1">shots slower in B</span>
+          </div>
+          {tiedCount > 0 && (
+            <div>
+              <span className="text-gray-300 print:text-gray-600 font-bold text-lg">{tiedCount}</span>
+              <span className="text-gray-400 print:text-gray-600 ml-1">tied</span>
+            </div>
+          )}
+        </div>
+
+        {outlierCount > 0 && (
+          <div className="mt-3 text-yellow-400 print:text-yellow-700 text-sm font-semibold">
+            {outlierCount} shot{outlierCount > 1 ? 's' : ''} flagged as outlier{outlierCount > 1 ? 's' : ''} (!! in table below)
+          </div>
+        )}
+      </div>
+
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-bold text-yellow-400 print:text-black">
             Match Comparison by Shot Position
           </h2>
-          <p className="text-gray-400 print:text-gray-600 mt-1">
-            <span className="text-blue-400 print:text-blue-600 font-semibold">A: {data.matchA.matchNumber}</span>
-            {data.matchA.description && ` - ${data.matchA.description}`}
-            <span className="mx-2">vs</span>
-            <span className="text-orange-400 print:text-orange-600 font-semibold">B: {data.matchB.matchNumber}</span>
-            {data.matchB.description && ` - ${data.matchB.description}`}
-          </p>
-          <p className="text-xs text-gray-500 mt-1 print:text-gray-600">
-            Matched by Hole + Stroke number | Green = faster in B | Red = slower in B
+          <div className="mt-2 flex flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded bg-blue-500"></span>
+              <span className="text-blue-400 print:text-blue-600 font-semibold">
+                A: {data.matchA.matchNumber}
+              </span>
+              {data.matchA.description && (
+                <span className="text-gray-500 print:text-gray-600">- {data.matchA.description}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded bg-orange-500"></span>
+              <span className="text-orange-400 print:text-orange-600 font-semibold">
+                B: {data.matchB.matchNumber}
+              </span>
+              {data.matchB.description && (
+                <span className="text-gray-500 print:text-gray-600">- {data.matchB.description}</span>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2 print:text-gray-600">
+            Matched by Hole + Stroke | Green = faster in B (improved) | Red = slower in B (worse) | !! = outlier
           </p>
           <p className="text-xs text-gray-500 print:text-gray-600">
             {matched.length} matched positions | {comparisons.length - matched.length} unmatched
@@ -204,7 +310,7 @@ export default function MatchCompareView({ data }: Props) {
       {/* Average Diffs Summary */}
       <div className="print-section bg-gray-800 rounded-lg p-4 print:bg-white print:border print:border-gray-300">
         <h3 className="text-lg font-semibold mb-3 text-yellow-400 print:text-black">
-          Average Time Difference Across All Matched Positions
+          Average Time Difference (B - A) Across {matched.length} Matched Positions
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {([
@@ -225,6 +331,11 @@ export default function MatchCompareView({ data }: Props) {
                 <div className={`text-2xl font-bold ${color}`}>
                   {val !== null ? `${prefix}${val.toFixed(2)}s` : '-'}
                 </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {val !== null
+                    ? improved ? 'B faster' : worse ? 'B slower' : 'Same'
+                    : ''}
+                </div>
               </div>
             );
           })}
@@ -233,9 +344,12 @@ export default function MatchCompareView({ data }: Props) {
 
       {/* Shot Position Comparison Table */}
       <div className="print-section bg-gray-800 rounded-lg p-4 print:bg-white print:border print:border-gray-300">
-        <h3 className="text-lg font-semibold mb-3 text-yellow-400 print:text-black">
+        <h3 className="text-lg font-semibold mb-1 text-yellow-400 print:text-black">
           Shot-by-Shot Comparison (seconds from first timestamp)
         </h3>
+        <p className="text-xs text-gray-500 mb-3 print:text-gray-600">
+          Rows highlighted in yellow are outliers — timing differences significantly larger than average
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs compare-table">
             <thead>
@@ -253,36 +367,39 @@ export default function MatchCompareView({ data }: Props) {
               <tr className="text-left text-gray-500 border-b border-gray-700 print:text-gray-600 print:border-gray-300" style={{ fontSize: '0.6rem' }}>
                 <th className="pb-1 pr-1 text-blue-400">A</th>
                 <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Δ</th>
+                <th className="pb-1 pr-2">Diff</th>
                 <th className="pb-1 pr-1 text-blue-400">A</th>
                 <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Δ</th>
+                <th className="pb-1 pr-2">Diff</th>
                 <th className="pb-1 pr-1 text-blue-400">A</th>
                 <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Δ</th>
+                <th className="pb-1 pr-2">Diff</th>
                 <th className="pb-1 pr-1 text-blue-400">A</th>
                 <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Δ</th>
+                <th className="pb-1 pr-2">Diff</th>
                 <th className="pb-1 pr-1 text-blue-400">A</th>
                 <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1 pr-2">Δ</th>
+                <th className="pb-1 pr-2">Diff</th>
                 <th className="pb-1 pr-1 text-blue-400">A</th>
                 <th className="pb-1 pr-1 text-orange-400">B</th>
-                <th className="pb-1">Δ</th>
+                <th className="pb-1">Diff</th>
               </tr>
             </thead>
             <tbody>
               {comparisons.map((c, i) => {
                 const onlyA = c.shotA && !c.shotB;
                 const onlyB = !c.shotA && c.shotB;
+                const rowIsOutlier = c.shotA && c.shotB && isRowOutlier(c);
 
                 return (
                   <tr
                     key={i}
                     className={`border-b border-gray-700/50 print:border-gray-200
-                      ${(onlyA || onlyB) ? 'opacity-50' : ''}`}
+                      ${(onlyA || onlyB) ? 'opacity-50' : ''}
+                      ${rowIsOutlier ? 'bg-yellow-900/30 print:bg-yellow-50' : ''}`}
                   >
-                    <td className="py-1 pr-2 font-semibold text-white print:text-black">
+                    <td className={`py-1 pr-2 font-semibold text-white print:text-black ${rowIsOutlier ? 'text-yellow-300 print:text-yellow-700' : ''}`}>
+                      {rowIsOutlier && <span className="mr-1 text-yellow-400 print:text-yellow-600" title="Outlier shot">!!</span>}
                       H{c.holeNumber}-S{c.strokeNumber}
                     </td>
                     <td className="py-1 pr-2 text-blue-300 print:text-blue-600">
@@ -294,27 +411,27 @@ export default function MatchCompareView({ data }: Props) {
                     {/* Speed */}
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToBallSpeed ?? null)}</td>
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToBallSpeed ?? null)}</td>
-                    <DiffCell value={c.diffs.timeToBallSpeed} />
+                    <DiffCell value={c.diffs.timeToBallSpeed} outlier={isOutlier(c.diffs.timeToBallSpeed, avgAbsDiffs.timeToBallSpeed)} />
                     {/* Launch */}
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToLaunchAngle ?? null)}</td>
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToLaunchAngle ?? null)}</td>
-                    <DiffCell value={c.diffs.timeToLaunchAngle} />
+                    <DiffCell value={c.diffs.timeToLaunchAngle} outlier={isOutlier(c.diffs.timeToLaunchAngle, avgAbsDiffs.timeToLaunchAngle)} />
                     {/* Apex */}
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToApex ?? null)}</td>
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToApex ?? null)}</td>
-                    <DiffCell value={c.diffs.timeToApex} />
+                    <DiffCell value={c.diffs.timeToApex} outlier={isOutlier(c.diffs.timeToApex, avgAbsDiffs.timeToApex)} />
                     {/* Curve */}
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToCurve ?? null)}</td>
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToCurve ?? null)}</td>
-                    <DiffCell value={c.diffs.timeToCurve} />
+                    <DiffCell value={c.diffs.timeToCurve} outlier={isOutlier(c.diffs.timeToCurve, avgAbsDiffs.timeToCurve)} />
                     {/* Carry */}
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToCarry ?? null)}</td>
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToCarry ?? null)}</td>
-                    <DiffCell value={c.diffs.timeToCarry} />
+                    <DiffCell value={c.diffs.timeToCarry} outlier={isOutlier(c.diffs.timeToCarry, avgAbsDiffs.timeToCarry)} />
                     {/* Total */}
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotA?.timeToTotal ?? null)}</td>
                     <td className="py-1 pr-1 text-gray-400">{formatMs(c.shotB?.timeToTotal ?? null)}</td>
-                    <DiffCell value={c.diffs.timeToTotal} />
+                    <DiffCell value={c.diffs.timeToTotal} outlier={isOutlier(c.diffs.timeToTotal, avgAbsDiffs.timeToTotal)} />
                   </tr>
                 );
               })}
@@ -329,7 +446,7 @@ export default function MatchCompareView({ data }: Props) {
           <h3 className="text-sm font-semibold mb-2 text-yellow-400 print:text-black">
             Timing Differences by Shot Position (B - A)
           </h3>
-          <p className="text-xs text-gray-500 mb-2">Below 0 = faster in B</p>
+          <p className="text-xs text-gray-500 mb-2">Below 0 = faster in B (improved)</p>
           <div className="h-56 print:h-44">
             <Bar
               data={diffChart}
@@ -339,7 +456,7 @@ export default function MatchCompareView({ data }: Props) {
                   ...chartOptions.scales,
                   y: {
                     ...chartOptions.scales.y,
-                    title: { display: true, text: 'Seconds (Δ)', color: '#9CA3AF', font: { size: 9 } },
+                    title: { display: true, text: 'Seconds (B - A)', color: '#9CA3AF', font: { size: 9 } },
                   },
                 },
               }}
@@ -349,7 +466,7 @@ export default function MatchCompareView({ data }: Props) {
 
         <div className="print-section chart-container bg-gray-800 rounded-lg p-4 print:bg-white print:border print:border-gray-300">
           <h3 className="text-sm font-semibold mb-2 text-yellow-400 print:text-black">
-            Time to Total - Side by Side
+            Time to Total — {data.matchA.matchNumber} vs {data.matchB.matchNumber}
           </h3>
           <div className="h-56 print:h-44">
             <Bar
