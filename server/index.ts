@@ -354,6 +354,40 @@ app.get('/api/matches', (req, res) => {
   }
 });
 
+// Map database row to ShotTimingData
+function mapRowToShot(row: any): ShotTimingData {
+  return {
+    golfer: row.golfer,
+    holeNumber: row.hole_number,
+    strokeNumber: row.stroke_number,
+    firstTimestamp: row.first_timestamp,
+    ballSpeed: row.ball_speed,
+    launchAngle: row.launch_angle,
+    apex: row.apex,
+    curve: row.curve,
+    carryDistance: row.carry_distance,
+    totalDistance: row.total_distance,
+    timeToBallSpeed: row.time_to_ball_speed,
+    timeToLaunchAngle: row.time_to_launch_angle,
+    timeToApex: row.time_to_apex,
+    timeToCurve: row.time_to_curve,
+    timeToCarry: row.time_to_carry,
+    timeToTotal: row.time_to_total,
+    deltaSpeedToLaunch: row.delta_speed_to_launch,
+    deltaLaunchToApex: row.delta_launch_to_apex,
+    deltaApexToCurve: row.delta_apex_to_curve,
+    deltaCurveToCarry: row.delta_curve_to_carry,
+    deltaCarryToTotal: row.delta_carry_to_total
+  };
+}
+
+// Get stats for a match by its database ID
+function getMatchStats(matchId: number): GolferStats[] {
+  const rows = db.prepare('SELECT * FROM shots WHERE match_id = ?').all(matchId) as any[];
+  const shots = rows.map(mapRowToShot);
+  return calculateGolferStats(shots);
+}
+
 // Get a specific match with stats
 app.get('/api/matches/:matchNumber', (req, res) => {
   try {
@@ -364,33 +398,7 @@ app.get('/api/matches/:matchNumber', (req, res) => {
       return res.status(404).json({ error: 'Match not found' });
     }
 
-    const shotsRows = db.prepare('SELECT * FROM shots WHERE match_id = ?').all(match.id) as any[];
-
-    const shots: ShotTimingData[] = shotsRows.map(row => ({
-      golfer: row.golfer,
-      holeNumber: row.hole_number,
-      strokeNumber: row.stroke_number,
-      firstTimestamp: row.first_timestamp,
-      ballSpeed: row.ball_speed,
-      launchAngle: row.launch_angle,
-      apex: row.apex,
-      curve: row.curve,
-      carryDistance: row.carry_distance,
-      totalDistance: row.total_distance,
-      timeToBallSpeed: row.time_to_ball_speed,
-      timeToLaunchAngle: row.time_to_launch_angle,
-      timeToApex: row.time_to_apex,
-      timeToCurve: row.time_to_curve,
-      timeToCarry: row.time_to_carry,
-      timeToTotal: row.time_to_total,
-      deltaSpeedToLaunch: row.delta_speed_to_launch,
-      deltaLaunchToApex: row.delta_launch_to_apex,
-      deltaApexToCurve: row.delta_apex_to_curve,
-      deltaCurveToCarry: row.delta_curve_to_carry,
-      deltaCarryToTotal: row.delta_carry_to_total
-    }));
-
-    const golferStats = calculateGolferStats(shots);
+    const golferStats = getMatchStats(match.id);
 
     res.json({
       match: {
@@ -398,13 +406,49 @@ app.get('/api/matches/:matchNumber', (req, res) => {
         description: match.description,
         createdAt: match.created_at
       },
-      totalShots: shots.length,
+      totalShots: golferStats.reduce((sum, g) => sum + g.shots.length, 0),
       golfers: golferStats.map(g => g.golfer),
       stats: golferStats
     });
   } catch (error) {
     console.error('Error fetching match:', error);
     res.status(500).json({ error: 'Failed to fetch match' });
+  }
+});
+
+// Compare two matches
+app.get('/api/compare', (req, res) => {
+  try {
+    const { matchA, matchB } = req.query;
+    if (!matchA || !matchB) {
+      return res.status(400).json({ error: 'Both matchA and matchB are required' });
+    }
+
+    const matchARecord = db.prepare('SELECT * FROM matches WHERE match_number = ?').get(matchA as string) as any;
+    if (!matchARecord) {
+      return res.status(404).json({ error: `Match "${matchA}" not found` });
+    }
+
+    const matchBRecord = db.prepare('SELECT * FROM matches WHERE match_number = ?').get(matchB as string) as any;
+    if (!matchBRecord) {
+      return res.status(404).json({ error: `Match "${matchB}" not found` });
+    }
+
+    res.json({
+      matchA: {
+        matchNumber: matchARecord.match_number,
+        description: matchARecord.description || '',
+        stats: getMatchStats(matchARecord.id)
+      },
+      matchB: {
+        matchNumber: matchBRecord.match_number,
+        description: matchBRecord.description || '',
+        stats: getMatchStats(matchBRecord.id)
+      }
+    });
+  } catch (error) {
+    console.error('Error comparing matches:', error);
+    res.status(500).json({ error: 'Failed to compare matches' });
   }
 });
 

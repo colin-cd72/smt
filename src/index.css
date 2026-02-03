@@ -124,4 +124,36 @@ body {
     padding: 2px 4px;
     font-size: 8pt;
   }
+
+  /* Compare table - smaller for many columns */
+  .compare-table td,
+  .compare-table th {
+    padding: 2px 3px;
+    font-size: 7pt;
+  }
+
+  /* Diff color overrides for print */
+  .text-green-400 {
+    color: #16a34a !important;
+  }
+
+  .text-red-400 {
+    color: #dc2626 !important;
+  }
+
+  .text-blue-400 {
+    color: #2563eb !important;
+  }
+
+  .text-orange-400 {
+    color: #ea580c !important;
+  }
+
+  .text-yellow-400 {
+    color: #ca8a04 !important;
+  }
+
+  .text-purple-400 {
+    color: #9333ea !important;
+  }
 }

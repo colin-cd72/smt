@@ -74,3 +74,30 @@ export interface MatchResponse {
   golfers: string[];
   stats: GolferStats[];
 }
+
+export interface CompareMatchData {
+  matchNumber: string;
+  description: string;
+  stats: GolferStats[];
+}
+
+export interface CompareResponse {
+  matchA: CompareMatchData;
+  matchB: CompareMatchData;
+}
+
+export interface TimingDiffs {
+  avgTimeToBallSpeed: number | null;
+  avgTimeToLaunchAngle: number | null;
+  avgTimeToApex: number | null;
+  avgTimeToCurve: number | null;
+  avgTimeToCarry: number | null;
+  avgTimeToTotal: number | null;
+}
+
+export interface GolferComparison {
+  golfer: string;
+  matchA: GolferStats | null;
+  matchB: GolferStats | null;
+  diffs: TimingDiffs;
+}
