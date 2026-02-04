@@ -231,15 +231,15 @@ export default function MatchCompareView({ data }: Props) {
         }`}>
           {overallDiff !== null
             ? overallFaster
-              ? `B was ${Math.abs(overallDiff).toFixed(2)}s faster on avg`
+              ? `${data.matchB.matchNumber} was ${Math.abs(overallDiff).toFixed(2)}s faster on avg`
               : overallSlower
-              ? `B was ${Math.abs(overallDiff).toFixed(2)}s slower on avg`
+              ? `${data.matchB.matchNumber} was ${Math.abs(overallDiff).toFixed(2)}s slower on avg`
               : 'No significant difference'
             : 'Insufficient data for comparison'}
         </div>
         <div className="verdict-sub text-sm text-gray-400 print:text-gray-600">
           {matched.length} matched positions |
-          <span className="text-green-400 print:text-green-600 font-bold ml-1">{bFasterCount}</span> faster in B,
+          <span className="text-green-400 print:text-green-600 font-bold ml-1">{bFasterCount}</span> faster in {data.matchB.matchNumber},
           <span className="text-red-400 print:text-red-600 font-bold ml-1">{bSlowerCount}</span> slower,
           <span className="font-bold ml-1">{tiedCount}</span> tied
           {outlierCount > 0 && (
@@ -275,7 +275,7 @@ export default function MatchCompareView({ data }: Props) {
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Green = faster in B (improved) | Red = slower in B (worse) | ! = outlier
+            Green = faster in {data.matchB.matchNumber} | Red = slower in {data.matchB.matchNumber} | ! = outlier
           </p>
         </div>
         <button
@@ -289,7 +289,7 @@ export default function MatchCompareView({ data }: Props) {
       {/* Average Diffs Summary */}
       <div className="print-section bg-gray-800 rounded-lg p-4 print:bg-white print:border print:border-gray-300">
         <h3 className="text-lg font-semibold mb-3 text-yellow-400 print:text-black print:text-sm print:mb-1">
-          Avg Time Diff (B - A)
+          Avg Time Diff ({data.matchB.matchNumber} - {data.matchA.matchNumber})
         </h3>
         <div className="print-avg-cards grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {([
@@ -312,7 +312,7 @@ export default function MatchCompareView({ data }: Props) {
                 </div>
                 <div className="avg-label text-xs text-gray-500 mt-1">
                   {val !== null
-                    ? improved ? 'B faster' : worse ? 'B slower' : 'Same'
+                    ? improved ? `${data.matchB.matchNumber} faster` : worse ? `${data.matchB.matchNumber} slower` : 'Same'
                     : ''}
                 </div>
               </div>
@@ -327,7 +327,7 @@ export default function MatchCompareView({ data }: Props) {
           Shot-by-Shot Comparison (seconds from first timestamp)
         </h3>
         <p className="text-xs text-gray-500 mb-3 print:text-gray-600 print:mb-1" style={{ fontSize: '0.6rem' }}>
-          Yellow rows = outliers (! marker) | Green diff = B faster | Red diff = B slower
+          Yellow rows = outliers (!) | Green = {data.matchB.matchNumber} faster | Red = {data.matchB.matchNumber} slower
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs compare-table">
@@ -423,9 +423,9 @@ export default function MatchCompareView({ data }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2 print:gap-2">
         <div className="print-section chart-container bg-gray-800 rounded-lg p-4 print:bg-white print:border print:border-gray-300">
           <h3 className="text-sm font-semibold mb-2 text-yellow-400 print:text-black">
-            Timing Differences by Shot Position (B - A)
+            Timing Differences by Shot Position ({data.matchB.matchNumber} - {data.matchA.matchNumber})
           </h3>
-          <p className="text-xs text-gray-500 mb-2">Below 0 = faster in B (improved)</p>
+          <p className="text-xs text-gray-500 mb-2">Below 0 = faster in {data.matchB.matchNumber}</p>
           <div className="h-56 print:h-44">
             <Bar
               data={diffChart}
@@ -435,7 +435,7 @@ export default function MatchCompareView({ data }: Props) {
                   ...chartOptions.scales,
                   y: {
                     ...chartOptions.scales.y,
-                    title: { display: true, text: 'Seconds (B - A)', color: '#9CA3AF', font: { size: 9 } },
+                    title: { display: true, text: `Seconds (${data.matchB.matchNumber} - ${data.matchA.matchNumber})`, color: '#9CA3AF', font: { size: 9 } },
                   },
                 },
               }}
